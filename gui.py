@@ -2,6 +2,7 @@ import tkinter as tk
 from tkinter import filedialog, messagebox
 import customtkinter as ctk
 import json
+import os
 
 class AppGUI:
     def __init__(self, root, config, startup_manager, on_toggle_request, on_quit_request, on_mapping_change=None):
@@ -15,6 +16,14 @@ class AppGUI:
         self.root.title("FN Lock Simulator")
         self.root.geometry("350x500") # Increased height for profiles
         self.root.resizable(False, False)
+        
+        # Set Window Icon
+        try:
+            icon_path = os.path.join(os.path.dirname(__file__), "icon.ico")
+            if os.path.exists(icon_path):
+                self.root.iconbitmap(icon_path)
+        except Exception as e:
+            print(f"Failed to set icon: {e}")
         
         # Configura o fechamento da janela para apenas esconder (minimizar para tray)
         self.root.protocol("WM_DELETE_WINDOW", self.hide_window)
