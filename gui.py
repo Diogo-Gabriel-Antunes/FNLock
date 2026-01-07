@@ -13,7 +13,7 @@ class AppGUI:
         self.on_mapping_change = on_mapping_change
         
         self.root.title("FN Lock Simulator")
-        self.root.geometry("350x400") # Increased height
+        self.root.geometry("350x500") # Increased height for profiles
         self.root.resizable(False, False)
         
         # Configura o fechamento da janela para apenas esconder (minimizar para tray)
@@ -27,9 +27,46 @@ class AppGUI:
         main_frame = ctk.CTkFrame(self.root)
         main_frame.pack(fill="both", expand=True, padx=20, pady=20)
         
+        # --- Profile Selector ---
+        profile_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
+        profile_frame.pack(fill="x", pady=(0, 10))
+        
+        ctk.CTkLabel(profile_frame, text="Perfil:", font=("Arial", 12)).pack(side="left", padx=(0, 5))
+        
+        self.profile_var = ctk.StringVar(value=self.config.get_current_profile_name())
+        self.profile_combo = ctk.CTkComboBox(
+            profile_frame,
+            values=self.config.get_profile_names(),
+            variable=self.profile_var,
+            command=self._on_profile_change,
+            width=150
+        )
+        self.profile_combo.pack(side="left", fill="x", expand=True)
+        
+        # Profile Action Button (+)
+        add_profile_btn = ctk.CTkButton(
+            profile_frame, 
+            text="+", 
+            width=30, 
+            command=self._add_new_profile
+        )
+        add_profile_btn.pack(side="left", padx=(5, 0))
+
+        # Delete Profile Button (Trash)
+        del_profile_btn = ctk.CTkButton(
+            profile_frame,
+            text="🗑",
+            width=30,
+            fg_color="#C0392B",
+            hover_color="#E74C3C",
+            command=self._delete_current_profile
+        )
+        del_profile_btn.pack(side="left", padx=(5, 0))
+        # -----------------------
+
         # Status Label
         self.status_label = ctk.CTkLabel(main_frame, text="FN LOCK: OFF", font=("Arial", 20, "bold"))
-        self.status_label.pack(pady=(20, 30))
+        self.status_label.pack(pady=(10, 20))
         
         # Botão Toggle
         self.toggle_btn = ctk.CTkButton(main_frame, text="ATIVAR", command=self._on_toggle_click, height=40, font=("Arial", 14))
@@ -63,6 +100,52 @@ class AppGUI:
         # Botão Sair (Totalmente)
         quit_btn = ctk.CTkButton(main_frame, text="Sair do Aplicativo", command=self.on_quit_request, fg_color="#C0392B", hover_color="#E74C3C")
         quit_btn.pack(side="bottom", fill="x", padx=20, pady=20)
+
+    def _on_profile_change(self, choice):
+        if self.config.set_active_profile(choice):
+            # Refresh UI elements that depend on profile data
+            self.smart_typing_var.set(self.config.get("smart_typing"))
+            
+            # Notify app to reload hooks
+            if self.on_mapping_change:
+                self.on_mapping_change()
+
+    def _add_new_profile(self):
+        dialog = ctk.CTkInputDialog(text="Nome do novo perfil:", title="Novo Perfil")
+        new_name = dialog.get_input()
+        
+        if new_name:
+            new_name = new_name.strip()
+            if not new_name:
+                return
+                
+            if self.config.create_profile(new_name):
+                # Switch to new profile
+                self.config.set_active_profile(new_name)
+                
+                # Update Combo
+                self.profile_combo.configure(values=self.config.get_profile_names())
+                self.profile_var.set(new_name)
+                
+                # Trigger update
+                self._on_profile_change(new_name)
+            else:
+                messagebox.showerror("Erro", "Perfil já existe ou nome inválido.")
+
+    def _delete_current_profile(self):
+        current = self.profile_var.get()
+        if current == "Default":
+            messagebox.showinfo("Aviso", "Não é possível deletar o perfil padrão.")
+            return
+            
+        if messagebox.askyesno("Confirmar", f"Tem certeza que deseja deletar o perfil '{current}'?"):
+            if self.config.delete_profile(current):
+                # Update Combo (auto switches to Default in config)
+                self.profile_combo.configure(values=self.config.get_profile_names())
+                self.profile_var.set("Default")
+                
+                # Trigger update
+                self._on_profile_change("Default")
 
     def _on_toggle_click(self):
         # Solicita a mudança de estado
@@ -106,7 +189,10 @@ class AppGUI:
 class KeyConfigWindow:
     def __init__(self, parent, config, on_save_callback):
         self.window = ctk.CTkToplevel(parent)
-        self.window.title("Configurar Teclas")
+        
+        current_profile = config.get_current_profile_name()
+        self.window.title(f"Configurar Teclas - {current_profile}")
+        
         self.window.geometry("450x650") # Increased height for activation key config
         self.window.attributes("-topmost", True)
         self.config = config

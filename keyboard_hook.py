@@ -152,17 +152,43 @@ class KeyboardHandler:
 
         try:
             for src, dst in self.key_map.items():
-                hook = keyboard.on_press_key(src, self._make_callback(dst), suppress=True)
-                self.remap_hooks.append(hook)
+                # Verifica se é uma combinação (tem '+') ou tecla simples
+                if '+' in src:
+                    # É uma hotkey (ex: ctrl+b)
+                    try:
+                        # add_hotkey retorna um handler (função) que pode ser removido depois
+                        # Usamos suppress=True para bloquear o original
+                        hook = keyboard.add_hotkey(src, self._make_hotkey_callback(dst), suppress=True)
+                        self.remap_hooks.append(('hotkey', hook))
+                    except Exception as e:
+                        print(f"Erro ao adicionar hotkey '{src}': {e}")
+                else:
+                    # É uma tecla simples
+                    try:
+                        hook = keyboard.on_press_key(src, self._make_callback(dst), suppress=True)
+                        self.remap_hooks.append(('key', hook))
+                    except Exception as e:
+                        print(f"Erro ao adicionar hook para '{src}': {e}")
+                        
         except Exception as e:
             print(f"Erro ao aplicar hooks: {e}")
 
     def _make_callback(self, dst_key):
         return lambda e: keyboard.send(dst_key)
+        
+    def _make_hotkey_callback(self, dst_key):
+        # Callback para hotkeys não recebe evento 'e'
+        return lambda: keyboard.send(dst_key)
 
     def _remove_hooks(self):
-        for hook in self.remap_hooks:
-            keyboard.unhook(hook)
+        for hook_type, hook_obj in self.remap_hooks:
+            try:
+                if hook_type == 'key':
+                    keyboard.unhook(hook_obj)
+                elif hook_type == 'hotkey':
+                    keyboard.remove_hotkey(hook_obj)
+            except Exception as e:
+                print(f"Erro ao remover hook: {e}")
         self.remap_hooks.clear()
 
     def stop(self):
